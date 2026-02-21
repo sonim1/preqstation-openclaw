@@ -1,47 +1,67 @@
 ---
 name: preqstation
-description: Execute Claude Code, Codex CLI, or Gemini CLI from OpenClaw when input starts with "preqstation:" using a strict prompt template and completion-summary output.
+description: Run Claude Code, Codex CLI, or Gemini CLI from natural-language OpenClaw requests for PREQSTATION work.
 metadata: {"openclaw":{"requires":{"anyBins":["claude","codex","gemini"]}}}
 ---
 
 # preqstation
 
-Use this skill only when the user message starts with:
-
-`preqstation: <detail>`
+Use this skill for natural-language requests to execute PREQSTATION-related work with local CLI engines.
 
 ## Trigger condition
 
-- Trigger only if the input starts with `preqstation:`.
-- If the prefix is missing, do not run this skill.
+Trigger this skill when the user asks to:
 
-## Detail format
+- start, continue, or complete a PREQSTATION task
+- run coding work in a project workspace
+- use `claude`, `codex`, or `gemini` for implementation
+- mentions `preq` or `preqstation` anywhere in the message (case-insensitive)
 
-Inside `<detail>`, require flags:
+No fixed prefix is required.
 
-`engine=<claude|codex|gemini> cwd=<absolute-path> prompt="..." [task=<TASK-ID>]`
+## Input interpretation
 
-Required keys:
+Parse from user message:
 
-- `engine`
-- `cwd`
-- `prompt`
+1. `engine`
+- if explicitly provided: `claude`, `codex`, or `gemini`
+- default: `claude`
 
-Optional key:
+2. `task`
+- first token matching `<KEY>-<number>` (example: `PRJ-284`)
+- optional
 
-- `task`
+3. `cwd` (required to execute)
+- if absolute path is explicitly provided, use it
+- else resolve by `project` key from `MEMORY.md`
+- else if task prefix key matches a `MEMORY.md` project key, use that path
+- if unresolved, return a short failure asking for project key or absolute path
 
-Full command form:
+4. `objective`
+- use the user request as the execution objective
 
-`preqstation: engine=<claude|codex|gemini> cwd=<absolute-path> prompt="..." [task=<TASK-ID>]`
+## MEMORY.md resolution
+
+- Read `MEMORY.md` from this repository root.
+- Use the `Projects` table (`key | cwd | note`).
+- Match project keys case-insensitively.
+- If user asks to add/update project path mapping, update `MEMORY.md` first, then confirm.
+
+## MEMORY.md update rules
+
+- Keep mappings in the `Projects` table only.
+- Add or update using this row format: `| <key> | <absolute-path> | <note> |`.
+- Use one row per key. If a key already exists, replace that row.
+- Always store absolute paths (no relative paths).
 
 ## Prompt rendering (required template)
 
-Do not pass user prompt directly. Render it into this template:
+Do not forward raw user text directly. Render this template:
 
 ```text
 Task ID: <task or N/A>
-User Objective: <prompt>
+Project Key: <project key or N/A>
+User Objective: <objective>
 Execution Requirements:
 1) Work only inside <cwd>.
 2) Complete the requested work.
@@ -78,11 +98,11 @@ Success format:
 
 Failure format:
 
-`failed: <task or N/A> via <engine> at <cwd> - <short reason>`
+`failed: <task or N/A> via <engine> at <cwd or N/A> - <short reason>`
 
-Never paste raw stdout/stderr unless explicitly requested by the user.
+Do not dump raw stdout/stderr unless user explicitly asks.
 
 ## Scope boundaries
 
-- OpenClaw handles messenger routing, auth, and webhook/channel behavior.
-- This skill only defines local CLI execution behavior.
+- OpenClaw handles messenger routing, auth, and channel/webhook behavior.
+- This skill only defines local CLI execution behavior and MEMORY mapping usage.

@@ -4,27 +4,48 @@ OpenClaw skill package for running `claude`, `codex`, or `gemini` CLI with a fix
 
 This repository is skill-only. It does not ship HTTP servers, webhook handlers, or messenger integration code.
 
-## OpenClaw skill usage
+## How to use
 
-Command prefix is required:
+Just talk to OpenClaw in natural language.
 
-`preqstation: <detail>`
+You do not need to write fixed flags or a `preqstation:` prefix.
 
-Detail format (flags):
+OpenClaw should use this skill when your request is about PREQSTATION task execution or running work in a mapped project.
 
-`engine=<claude|codex|gemini> cwd=<absolute-path> prompt="..." [task=<TASK-ID>]`
+If your message includes `preq` or `preqstation`, this skill should be prioritized.
 
-Full input format:
+## Natural language examples
 
-`preqstation: engine=<claude|codex|gemini> cwd=<absolute-path> prompt="..." [task=<TASK-ID>]`
+1. `Start PRJ-284 in the example project using Claude.`
+2. `Use Codex to fix README command examples in the example project.`
+3. `Use Gemini to draft notes for DOC-12 in the example project.`
+4. `Update the example project path to /<absolute-path>/projects/example-project.`
+5. `Implement API pagination and add tests in the example project.`
 
-Examples:
+## Engine selection rules
 
-1. `preqstation: engine=claude cwd=/Users/me/projects/app task=PRJ-284 prompt="implement API pagination and update tests"`
-2. `preqstation: engine=codex cwd=/Users/me/projects/app prompt="fix failing lint and commit minimal patch"`
-3. `preqstation: engine=gemini cwd=/Users/me/projects/docs task=DOC-12 prompt="rewrite README intro in concise technical tone"`
-4. `preqstation: engine=claude cwd=/Users/me/projects/mobile prompt="triage crash and add regression test"`
-5. `preqstation: engine=codex cwd=/Users/me/projects/platform task=OPS-7 prompt="add healthcheck and verify deployment config"`
+- explicit engine in message: use it (`claude`, `codex`, `gemini`)
+- if omitted: default to `claude`
+
+## Workspace path resolution
+
+Execution needs a workspace path.
+
+Resolve in this order:
+
+1. absolute path directly mentioned in message
+2. project key from `MEMORY.md` (for example `example`)
+3. task prefix key match in `MEMORY.md` (when available)
+
+If path cannot be resolved, ask user for project key or absolute path.
+
+## MEMORY.md usage
+
+`MEMORY.md` stores reusable project path mappings.
+
+- keep keys short and stable
+- use absolute paths only
+- update this file through normal OpenClaw conversation when paths change
 
 ## Expected output
 
@@ -34,7 +55,7 @@ Success:
 
 Failure:
 
-`failed: <task or N/A> via <engine> at <cwd> - <short reason>`
+`failed: <task or N/A> via <engine> at <cwd or N/A> - <short reason>`
 
 ## ClawHub import
 
