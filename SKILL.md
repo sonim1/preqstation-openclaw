@@ -1,16 +1,23 @@
 ---
 name: preqstation
-description: Execute Claude Code, Codex CLI, or Gemini CLI from OpenClaw using flags-based input with a strict prompt template and completion-summary output.
+description: Execute Claude Code, Codex CLI, or Gemini CLI from OpenClaw when input starts with "preqstation:" using a strict prompt template and completion-summary output.
 metadata: {"openclaw":{"requires":{"anyBins":["claude","codex","gemini"]}}}
 ---
 
 # preqstation
 
-Use this skill only when the user provides a flags-based execution request for CLI agents.
+Use this skill only when the user message starts with:
+
+`preqstation: <detail>`
 
 ## Trigger condition
 
-Invoke this skill when input matches this format:
+- Trigger only if the input starts with `preqstation:`.
+- If the prefix is missing, do not run this skill.
+
+## Detail format
+
+Inside `<detail>`, require flags:
 
 `engine=<claude|codex|gemini> cwd=<absolute-path> prompt="..." [task=<TASK-ID>]`
 
@@ -23,6 +30,10 @@ Required keys:
 Optional key:
 
 - `task`
+
+Full command form:
+
+`preqstation: engine=<claude|codex|gemini> cwd=<absolute-path> prompt="..." [task=<TASK-ID>]`
 
 ## Prompt rendering (required template)
 
@@ -74,4 +85,4 @@ Never paste raw stdout/stderr unless explicitly requested by the user.
 ## Scope boundaries
 
 - OpenClaw handles messenger routing, auth, and webhook/channel behavior.
-- This skill only defines execution behavior for local CLI agents.
+- This skill only defines local CLI execution behavior.
