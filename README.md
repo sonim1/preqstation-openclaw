@@ -14,6 +14,15 @@ OpenClaw should use this skill when your request is about PREQSTATION task execu
 
 If your message includes `preq` or `preqstation`, this skill should be prioritized.
 
+## Execution mode
+
+Engine runs are asynchronous by default.
+
+- OpenClaw starts a detached `tmux` session through `scripts/run-agent-async.sh`
+- it should return immediately instead of waiting for completion
+- attach command format: `tmux -CC attach -t <session>`
+- background log default: `<cwd>/.openclaw-artifacts` (override with `OPENCLAW_ARTIFACT_DIR`)
+
 ## Natural language examples
 
 1. `Start PRJ-284 in the example project using Claude.`
@@ -21,6 +30,8 @@ If your message includes `preq` or `preqstation`, this skill should be prioritiz
 3. `Use Gemini to draft notes for DOC-12 in the example project.`
 4. `Update the example project path to /<absolute-path>/projects/example-project.`
 5. `Implement API pagination and add tests in the example project.`
+6. `What is currently running in OpenClaw sessions?`
+7. `Show progress for session openclaw-claude-20260221-131240.`
 
 ## Engine selection rules
 
@@ -51,11 +62,24 @@ If path cannot be resolved, ask user for project key or absolute path.
 
 Success:
 
-`completed: <task or N/A> via <engine> at <cwd>`
+`started: <task or N/A> via <engine> at <cwd> (session: <session>, attach: tmux -CC attach -t <session>, log: <log_path>)`
 
 Failure:
 
 `failed: <task or N/A> via <engine> at <cwd or N/A> - <short reason>`
+
+## Session status check
+
+Use:
+
+- `bash scripts/check-agent-status.sh` (running sessions)
+- `bash scripts/check-agent-status.sh --all` (running + ended)
+- `bash scripts/check-agent-status.sh --session "<session>"` (single session)
+
+Status index file:
+
+- default: `<skill-root>/.openclaw-artifacts/sessions.tsv`
+- override: `OPENCLAW_INDEX_DIR`
 
 ## ClawHub import
 

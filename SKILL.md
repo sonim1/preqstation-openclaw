@@ -15,6 +15,7 @@ Trigger this skill when the user asks to:
 - start, continue, or complete a PREQSTATION task
 - run coding work in a project workspace
 - use `claude`, `codex`, or `gemini` for implementation
+- check progress/status of running engine sessions
 - mentions `preq` or `preqstation` anywhere in the message (case-insensitive)
 
 No fixed prefix is required.
@@ -39,6 +40,10 @@ Parse from user message:
 
 4. `objective`
 - use the user request as the execution objective
+
+5. `intent`
+- if user asks "status", "progress", "what is running", or similar: run status query
+- otherwise: run new async execution
 
 ## MEMORY.md resolution
 
@@ -65,7 +70,8 @@ User Objective: <objective>
 Execution Requirements:
 1) Work only inside <cwd>.
 2) Complete the requested work.
-3) After completion, return a short completion summary.
+3) Start execution asynchronously in tmux.
+4) Return a short start summary with tmux session info.
 ```
 
 ## Engine commands
@@ -73,34 +79,67 @@ Execution Requirements:
 ### Claude Code
 
 ```bash
-claude --dangerously-skip-permissions -p "<rendered_prompt>"
+scripts/run-agent-async.sh claude "<cwd>" "<rendered_prompt>"
 ```
 
 ### Codex CLI
 
 ```bash
-codex exec --dangerously-bypass-approvals-and-sandbox "<rendered_prompt>"
+scripts/run-agent-async.sh codex "<cwd>" "<rendered_prompt>"
 ```
 
 ### Gemini CLI
 
 ```bash
-GEMINI_SANDBOX=false gemini -p "<rendered_prompt>"
+scripts/run-agent-async.sh gemini "<cwd>" "<rendered_prompt>"
+```
+
+All engine executions must be asynchronous.
+
+- do not wait for CLI completion in OpenClaw
+- start work in a detached `tmux` session via `scripts/run-agent-async.sh`
+- include `tmux -CC attach -t <session>` in the summary so the user can jump in immediately
+- include log path from script output so users can inspect background execution
+
+## Status query commands
+
+For status/progress requests, use:
+
+```bash
+bash scripts/check-agent-status.sh
+```
+
+Optional filters:
+
+```bash
+bash scripts/check-agent-status.sh --session "<session>"
+bash scripts/check-agent-status.sh --task "<KEY-123>"
+bash scripts/check-agent-status.sh --all
 ```
 
 ## Output policy
 
-Return only a short completion summary.
+Return only a short start summary.
 
 Success format:
 
-`completed: <task or N/A> via <engine> at <cwd>`
+`started: <task or N/A> via <engine> at <cwd> (session: <session>, attach: tmux -CC attach -t <session>, log: <log_path>)`
 
 Failure format:
 
 `failed: <task or N/A> via <engine> at <cwd or N/A> - <short reason>`
 
 Do not dump raw stdout/stderr unless user explicitly asks.
+
+`scripts/run-agent-async.sh` log directory:
+
+- default: `<cwd>/.openclaw-artifacts`
+- override: `OPENCLAW_ARTIFACT_DIR`
+
+Session index for status queries:
+
+- default: `<skill-root>/.openclaw-artifacts/sessions.tsv`
+- override: `OPENCLAW_INDEX_DIR`
 
 ## Scope boundaries
 
