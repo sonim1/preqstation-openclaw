@@ -66,7 +66,7 @@ Parse from user message:
 - if absolute path is explicitly provided, use it
 - else resolve by `project` key from `MEMORY.md`
 - else if task prefix key matches a `MEMORY.md` project key, use that path
-- if unresolved, return a short failure asking for project key or absolute path
+- if unresolved, ask for project key/name and absolute path, update `MEMORY.md`, then continue execution
 
 4. `objective`
 - use the user request as the execution objective
@@ -77,6 +77,7 @@ Parse from user message:
 - Use the `Projects` table (`key | cwd | note`).
 - Match project keys case-insensitively.
 - If user asks to add/update project path mapping, update `MEMORY.md` first, then confirm.
+- If task id exists, treat the prefix as candidate project key (example: `PROS-102` -> `pros`).
 
 ## MEMORY.md update rules
 
@@ -84,6 +85,21 @@ Parse from user message:
 - Add or update using this row format: `| <key> | <absolute-path> | <note> |`.
 - Use one row per key. If a key already exists, replace that row.
 - Always store absolute paths (no relative paths).
+- Normalize key to lowercase kebab-case before writing.
+- If user provides project name, store it in `note`; otherwise use `workspace`.
+
+## Missing project mapping flow (required)
+
+When `cwd` cannot be resolved:
+
+1. Ask one short question requesting:
+- project key (or confirm inferred key from task prefix)
+- absolute workspace path
+- optional project name for note
+2. Validate path is absolute.
+3. Update or insert the `MEMORY.md` row immediately.
+4. Confirm mapping in one short line.
+5. Continue the original task using the newly resolved `cwd` (do not stop with failure after successful mapping).
 
 ## Branch naming convention (project key based)
 

@@ -6,4 +6,4 @@ Use this file to store reusable project workspace paths.
 
 | key | cwd | note |
 | --- | --- | --- |
-| example | /<absolute-path>/projects/example-project | example workspace |
+| EXAM | /<absolute-path>/projects/example-project | example project name |
