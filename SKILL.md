@@ -10,12 +10,11 @@ Use this skill for natural-language requests to execute PREQSTATION-related work
 
 ## Trigger / NOT for
 
-Trigger when the user asks to:
+Trigger this skill with highest priority when the message contains any of:
 
-- start, continue, or complete a PREQSTATION task
-- run coding work in a project workspace
-- use `claude`, `codex`, or `gemini` for implementation
-- mention `preq` or `preqstation` anywhere in the message (case-insensitive)
+- `/skill preqstation`
+- `preqstation`
+- `preq`
 
 Do NOT use this skill for:
 
@@ -23,20 +22,10 @@ Do NOT use this skill for:
 - read-only file inspection or explanation without execution
 - any coding-agent launch inside `~/clawd/` or `~/.openclaw/`
 
-For Codex routing reliability, start prompts with `$preqstation`.
-
-## Codex Skill Routing (Important)
-
-When using Codex, start the prompt with `$preqstation` to force this skill to activate.
-
-Examples:
-
-- `$preqstation preq: implement PROJ-1`
-- `$preqstation /skill preqstation: implement the PROJ-27`
-
 ## Quick trigger examples
 
 - `/skill preqstation: implement the PROJ-1`
+- `preqstation: plan PROJ-76 using Claude Code`
 - `preq: implement PROJ-1`
 
 ## Hard rules
@@ -68,6 +57,7 @@ Parse from user message:
 - else resolve by `project` key from `MEMORY.md`
 - else if task prefix key matches a `MEMORY.md` project key, use that path
 - if unresolved, ask for project key/name and absolute path, update `MEMORY.md`, then continue execution
+- if an exact project key does not exist in `MEMORY.md`, always ask the user before execution (do not guess)
 
 4. `objective`
 - use the user request as the execution objective
@@ -81,7 +71,8 @@ Parse from user message:
 
 - Read `MEMORY.md` from this repository root.
 - Use the `Projects` table (`key | cwd | note`).
-- Match project keys case-insensitively.
+- Match project keys by exact key only (case-insensitive, no fuzzy/partial matching).
+- If exact project key is missing, ask the user for the correct key/path before continuing.
 - If user asks to add/update project path mapping, update `MEMORY.md` first, then confirm.
 - If task id exists, treat the prefix as candidate project key (example: `PROS-102` -> `pros`).
 
@@ -96,7 +87,7 @@ Parse from user message:
 
 ## Missing project mapping flow (required)
 
-When `project_cwd` cannot be resolved:
+When `project_cwd` cannot be resolved, or exact project key is missing in `MEMORY.md`:
 
 1. Ask one short question requesting:
 - project key (or confirm inferred key from task prefix)
@@ -113,60 +104,23 @@ Use this format for worktree branches:
 
 `codex/<project_key>`
 
-## Parallel Issue Fixing with git worktrees
-For fixing multiple issues in parallel, use git worktrees:
-
-```
-# 1. Create worktrees for each issue
-git worktree add -b fix/issue-78 /tmp/issue-78 main
-git worktree add -b fix/issue-99 /tmp/issue-99 main
-
-# 2. Launch Codex in each (background + PTY!)
-bash pty:true workdir:/tmp/issue-78 background:true command:"pnpm install && codex --yolo 'Fix issue #78: <description>. Commit and push.'"
-bash pty:true workdir:/tmp/issue-99 background:true command:"pnpm install && codex --yolo 'Fix issue #99 from the approved ticket summary. Implement only the in-scope edits and commit after review.'"
-
-# 3. Monitor progress
-process action:list
-process action:log sessionId:XXX
-
-# 4. Create PRs after fixes
-cd /tmp/issue-78 && git push -u origin fix/issue-78
-gh pr create --repo user/repo --head fix/issue-78 --title "fix: ..." --body "..."
-
-# 5. Cleanup
-git worktree remove /tmp/issue-78
-git worktree remove /tmp/issue-99
-```
-
-# ⚠️ Rules
+Rules:
 
 - `<project_key>` must be the resolved project key from `MEMORY.md`.
 - Normalize `<project_key>` to lowercase and kebab-case.
-- If task id exists, prefer task id for suffix (lowercased):
-  - example: `codex/preq/prj-284`
-- If no task id, use a short purpose slug:
-  - example: `codex/preq/issue-101`
-- Always use pty:true - coding agents need a terminal!
-- Respect tool choice - if user asks for Codex, use Codex.
-- Orchestrator mode: do NOT hand-code patches yourself.
-- If an agent fails/hangs, respawn it or ask the user for direction, but don't silently take over.
-- Be patient - don't kill sessions because they're "slow"
-- Monitor with process:log - check progress without interfering
-- NEVER start Codex in ~/.openclaw/ - it'll read your soul docs and get weird ideas about the org chart!
-- NEVER checkout branches in ~/Projects/openclaw/ - that's the LIVE OpenClaw instance!
 
 ## Worktree-first execution (required default)
 
 After resolving `project_cwd` and `project_key`, prepare execution workspace:
 
 1. Build branch name using this skill's convention:
-- `codex/<project_key>/<task_or_purpose>`
+- `codex/<project_key>`
 2. Build per-task worktree path:
 - default root: `${OPENCLAW_WORKTREE_ROOT:-/tmp/openclaw-worktrees}`
-- directory: `<worktree_root>/<project_key>-<task_or_purpose>`
+- directory: `<worktree_root>/<project_key>`
 3. Create the worktree from `project_cwd` before launching engine:
-- new branch: `git -C <project_cwd> worktree add -b <branch> <cwd> HEAD`
-- existing branch: `git -C <project_cwd> worktree add <cwd> <branch>`
+- new branch: `git -C <project_cwd> worktree add -b codex/<project_key> <cwd> HEAD`
+- existing branch: `git -C <project_cwd> worktree add <cwd> codex/<project_key>`
 4. Use this worktree path as `<cwd>` for prompt rendering and engine execution.
 
 ## Prompt rendering (required template)
@@ -239,8 +193,8 @@ Use these actions as standard controls:
 Create a task worktree, then run inside that worktree:
 
 ```bash
-git -C <project_cwd> worktree add -b codex/<project_key>/<task_or_purpose> /tmp/openclaw-worktrees/<project_key>-<task_or_purpose> HEAD
-bash pty:true workdir:/tmp/openclaw-worktrees/<project_key>-<task_or_purpose> command:"codex exec --dangerously-bypass-approvals-and-sandbox '<rendered_prompt>'"
+git -C <project_cwd> worktree add -b codex/<project_key> /tmp/openclaw-worktrees/<project_key> HEAD
+bash pty:true workdir:/tmp/openclaw-worktrees/<project_key> command:"codex exec --dangerously-bypass-approvals-and-sandbox '<rendered_prompt>'"
 ```
 
 The Pattern: workdir + background + pty
@@ -281,8 +235,8 @@ Never run PR review in live OpenClaw folders.
 
 ```bash
 # default: git worktree review (project-key based branch naming)
-git worktree add -b codex/<project_key>/pr-<pr_number>-review /tmp/<project_key>-pr-<pr_number>-review <base_branch>
-bash pty:true workdir:/tmp/<project_key>-pr-<pr_number>-review command:"codex review --base <base_branch>"
+git worktree add -b codex/<project_key> /tmp/<project_key>-review <base_branch>
+bash pty:true workdir:/tmp/<project_key>-review command:"codex review --base <base_branch>"
 
 # fallback: temp clone review (only when local checkout is unavailable)
 REVIEW_DIR=$(mktemp -d)
@@ -291,10 +245,9 @@ cd "$REVIEW_DIR" && gh pr checkout <pr_number>
 bash pty:true workdir:"$REVIEW_DIR" command:"codex review --base origin/main"
 ```
 
-## Parallel issue pattern (worktrees)
+## Issue worktree pattern
 
 ```bash
-git worktree add -b codex/<project_key> /tmp/<project_key> main
 git worktree add -b codex/<project_key> /tmp/<project_key> main
 
 bash pty:true workdir:/tmp/<project_key> background:true command:"codex exec --dangerously-bypass-approvals-and-sandbox 'Fix issue #101. Commit after validation.'"
