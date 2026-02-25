@@ -40,6 +40,26 @@ Do NOT use this skill for:
 8. Keep execution scoped to resolved worktree `<cwd>` only.
 9. Worktree branch names must include the resolved project key.
 
+## Runtime prerequisites (required)
+
+- `git` must be installed and available on `PATH`.
+- At least one engine binary must be installed: `claude`, `codex`, or `gemini`.
+- Environment variables used by this skill:
+  - `OPENCLAW_WORKTREE_ROOT` (optional, default `/tmp/openclaw-worktrees`)
+- This skill reads and updates `MEMORY.md` project mappings with absolute paths.
+
+## Execution safety gates (required)
+
+Before running any engine command:
+
+1. Run preflight checks:
+   - `command -v git`
+   - `command -v <engine>`
+2. Continue only when execution `cwd` is a resolved git worktree path for this task.
+3. Never run engine commands in primary checkout paths or inside `~/clawd/` / `~/.openclaw/`.
+4. Use `dangerously-*` / sandbox-disable flags only for actual coding execution with local trusted CLIs.
+5. For planning/read-only requests, do not launch engine commands.
+
 ## Input interpretation
 
 Parse from user message:
@@ -142,6 +162,13 @@ Execution Requirements:
 ## Engine commands (current policy retained)
 
 All engine commands must be launched via bash with PTY and explicit workdir.
+
+Why `dangerously-*` flags are retained:
+
+- This skill targets non-interactive PTY/background execution.
+- Permission prompts can block unattended runs; these flags avoid that blocking behavior.
+- These flags are allowed only after passing the required safety gates above and only in resolved task worktrees.
+- If your environment does not allow these flags, fail fast with a short reason instead of silently falling back.
 
 ### Claude Code
 
