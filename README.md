@@ -16,12 +16,13 @@ If your message includes `preq` or `preqstation`, this skill should be prioritiz
 
 ## Execution mode
 
-Engine runs are asynchronous by default.
+Worktree-first execution is the default.
 
-- OpenClaw starts a detached `tmux` session through `scripts/run-agent-async.sh`
-- it should return immediately instead of waiting for completion
-- attach command format: `tmux -CC attach -t <session>`
-- background log default: `<cwd>/.openclaw-artifacts` (override with `OPENCLAW_ARTIFACT_DIR`)
+- resolve `project_cwd` from user input or `MEMORY.md`
+- create a per-task git worktree and use it as execution `<cwd>`
+- launch engine commands with `pty:true` and explicit `workdir:<cwd>`
+- use `background:true` only when asynchronous execution is needed
+- monitor background sessions with `process action:poll` and `process action:log`
 
 ## Natural language examples
 
@@ -40,7 +41,10 @@ Engine runs are asynchronous by default.
 
 ## Workspace path resolution
 
-Execution needs a workspace path.
+Execution needs two paths:
+
+- `project_cwd`: primary checkout path
+- `cwd`: per-task worktree path used for actual engine execution
 
 Resolve in this order:
 
@@ -49,6 +53,12 @@ Resolve in this order:
 3. task prefix key match in `MEMORY.md` (when available)
 
 If path cannot be resolved, ask user for project key or absolute path.
+
+After `project_cwd` is resolved, create task worktree `cwd`:
+
+- default root: `${OPENCLAW_WORKTREE_ROOT:-/tmp/openclaw-worktrees}`
+- branch naming: `codex/<project_key>/<task_or_purpose>`
+- run all coding-agent commands inside this worktree `cwd` (never in primary checkout)
 
 ## MEMORY.md usage
 
@@ -62,24 +72,22 @@ If path cannot be resolved, ask user for project key or absolute path.
 
 Success:
 
-`started: <task or N/A> via <engine> at <cwd> (session: <session>, attach: tmux -CC attach -t <session>, log: <log_path>)`
+`completed: <task or N/A> via <engine> at <cwd>`
 
 Failure:
 
 `failed: <task or N/A> via <engine> at <cwd or N/A> - <short reason>`
 
-## Session status check
+## Background session controls
 
-Use:
+When using `background:true`, use process actions:
 
-- `bash scripts/check-agent-status.sh` (running sessions)
-- `bash scripts/check-agent-status.sh --all` (running + ended)
-- `bash scripts/check-agent-status.sh --session "<session>"` (single session)
-
-Status index file:
-
-- default: `<skill-root>/.openclaw-artifacts/sessions.tsv`
-- override: `OPENCLAW_INDEX_DIR`
+- `process action:list`
+- `process action:poll sessionId:<id>`
+- `process action:log sessionId:<id>`
+- `process action:write sessionId:<id> data:"..."`
+- `process action:submit sessionId:<id> data:"..."`
+- `process action:kill sessionId:<id>` (only when required)
 
 ## ClawHub import
 
