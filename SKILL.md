@@ -80,7 +80,7 @@ Parse from user message:
   - `branch=<value>`
 - strip surrounding quotes from `<value>`
 - normalize to lowercase; replace whitespace with `-`
-- if it does not include the resolved `project_key`, prefix with `codex/<project_key>/`
+- if it does not include the resolved `project_key`, prefix with `preqstation/<project_key>/`
 
 4. `project_cwd` (required to prepare execution)
 - if absolute path is explicitly provided, use it
@@ -144,13 +144,13 @@ When `project_cwd` cannot be resolved, or exact project key is missing in `MEMOR
 Resolve branch name using this priority:
 
 1. parsed `branch_name` from user message
-2. fallback: `codex/<project_key>`
+2. fallback: `preqstation/<project_key>`
 
 Rules:
 
 - `<project_key>` must be the resolved project key from `MEMORY.md`.
 - normalize to lowercase and kebab-case-friendly tokens.
-- branch must include resolved `project_key`; if missing, prefix with `codex/<project_key>/`.
+- branch must include resolved `project_key`; if missing, prefix with `preqstation/<project_key>/`.
 - reject unsafe names (`..`, leading `/`, or empty result) and ask user for a valid branch name.
 
 ## Worktree-first execution (required default)

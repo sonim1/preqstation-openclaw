@@ -83,8 +83,8 @@ After `project_cwd` is resolved, create task worktree `cwd`:
 - default root: `${OPENCLAW_WORKTREE_ROOT:-/tmp/openclaw-worktrees}`
 - branch naming priority:
   1. use message `branch_name` when provided
-  2. fallback to `codex/<project_key>`
-- if provided `branch_name` does not include project key, normalize to `codex/<project_key>/<branch_name>`
+  2. fallback to `preqstation/<project_key>`
+- if provided `branch_name` does not include project key, normalize to `preqstation/<project_key>/<branch_name>`
 - worktree directory naming: `<worktree_root>/<project_key>/<branch_slug>` where `branch_slug` is `branch_name` with `/` replaced by `-`
 - run all coding-agent commands inside this worktree `cwd` (never in primary checkout)
 
