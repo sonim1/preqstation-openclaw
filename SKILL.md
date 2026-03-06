@@ -10,54 +10,56 @@ Execute PREQSTATION tasks with local CLI engines.
 
 ## Trigger / NOT for
 
-Trigger when message contains: `/skill preqstation`, `!/skill preqstation`, `preqstation`, `preq`
+Trigger when message contains: /skill preqstation, !/skill preqstation, preqstation, preq
 
-Note: Telegram channels use `!` prefix instead of `/` (e.g. `!/skill preqstation implement PROJ-1`). Treat `!/skill` identically to `/skill`.
+Note: Telegram channels use ! prefix instead of / (e.g. !/skill preqstation implement PROJ-1). Treat !/skill identically to /skill.
 
-Do NOT use for: one-line edits, read-only inspection, launches inside `~/clawd/` or `~/.openclaw/`.
+Do NOT use for: one-line edits, read-only inspection, launches inside ~/clawd/ or ~/.openclaw/.
 
 ## Hard rules
 
-1. Always `pty:true` + `background:true` (foreground only if user explicitly asks).
-2. Respect requested engine; default `claude`.
-3. Never launch in `~/clawd/`, `~/.openclaw/`, or primary checkout paths.
+1. Always pty:true + background:true (foreground only if user explicitly asks).
+2. Respect requested engine; default claude.
+3. Never launch in ~/clawd/, ~/.openclaw/, or primary checkout paths.
 4. Always create a git worktree before launching; scope execution to worktree only.
 5. Worktree branch names must include the resolved project key.
-6. Run preflight checks (`command -v git`, `command -v <engine>`) before launch.
-7. Use `dangerously-*` / sandbox-disable flags only in resolved task worktrees.
+6. Run preflight checks (command -v git, command -v <engine>) before launch.
+7. Use dangerously-* / sandbox-disable flags only in resolved task worktrees.
 8. Planning/read-only requests: do not launch engine commands.
 
 ## Input interpretation
 
 Parse from user message:
 
-1. `engine` — `claude` | `codex` | `gemini` (default: `claude`)
-2. `task` — first token matching `<KEY>-<number>` (e.g. `PRJ-284`)
-3. `branch_name` — parse from `branch_name=<value>` or `branch=<value>`; normalize lowercase, replace whitespace with `-`; if missing project_key prefix with `preqstation/<project_key>/`
-4. `project_cwd` — absolute path from message, or resolve from `MEMORY.md` by project key; if unresolved, ask user
-5. `objective` — user request as execution objective
-6. `cwd` — worktree path: `<worktree_root>/<project_key>/<branch_slug>`
-7. `progress_mode` — `sparse` (default) or `live` (if user says `live`/`realtime`/`detailed`)
+1. engine — claude | codex | gemini (default: claude)
+2. task — first token matching <KEY>-<number> (e.g. PRJ-284)
+3. branch_name — parse from branch_name=<value> or branch=<value>; normalize lowercase, replace whitespace with -; if missing project_key prefix with preqstation/<project_key>/
+4. project_cwd — absolute path from message, or resolve from MEMORY.md by project key; if unresolved, ask user
+5. objective — user request as execution objective
+6. cwd — worktree path: <worktree_root>/<project_key>/<branch_slug>
+7. progress_mode — sparse (default) or live (if user says live/realtime/detailed)
 
 ## MEMORY.md
 
-- Read `MEMORY.md` `Projects` table (`key | cwd | note`) from repo root.
+- Read MEMORY.md Projects table (key | cwd | note) from repo root.
 - Match project keys by exact match only (case-insensitive).
-- Task prefix = candidate key (e.g. `PROS-102` → `pros`).
-- If cwd is `TBD` or missing: try to locate the git repository locally (e.g. `find ~/projects -maxdepth 2 -name .git -type d`), or ask the user for the absolute path. Once confirmed, update `MEMORY.md` immediately, then continue.
-- Format: `| <key> | <absolute-path> | <note> |`, one row per key, lowercase kebab-case.
+- Task prefix = candidate key (e.g. PROS-102 → pros).
+- If cwd is TBD or missing: try to locate the git repository locally (e.g. find ~/projects -maxdepth 2 -name .git -type d), or ask the user for the absolute path. Once confirmed, update MEMORY.md immediately, then continue.
+- Format: | <key> | <absolute-path> | <note> |, one row per key, lowercase kebab-case.
 
 ## Worktree-first execution
 
-1. Branch name: parsed `branch_name` → fallback `preqstation/<project_key>`. Reject unsafe names (`..`, leading `/`).
-2. Worktree path: `<worktree_root>/<project_key>/<branch_slug>` (slug = branch with `/` → `-`).
-3. Create: `git -C <project_cwd> worktree add -b <branch_name> <cwd> HEAD` (or without `-b` for existing branch).
+1. Branch name: parsed branch_name → fallback preqstation/<project_key>. Reject unsafe names (.., leading /).
+2. Worktree path: <worktree_root>/<project_key>/<branch_slug> (slug = branch with / → -).
+3. Create: git -C <project_cwd> worktree add -b <branch_name> <cwd> HEAD (or without -b for existing branch).
 
 ## Prompt template
 
-Do not forward raw user text. Render this template with `<cwd>` as the worktree path:
+Do not forward raw user text. Render this template with <cwd> as the worktree path.
 
-```text
+**Hard rule (prompt transport):** Always render the prompt into a file inside the worktree (e.g. `<cwd>/.preqstation-prompt.txt`) and pass it to the engine by reading the file contents. Do NOT pass multi-line prompts directly as shell argv, because CRLF / special characters / length can cause silent failures.
+
+`text
 Task ID: <task or N/A>
 Project Key: <project key or N/A>
 Branch Name: <branch_name or N/A>
@@ -79,11 +81,10 @@ Execution Requirements:
    git -C <project_cwd> worktree remove <cwd> --force
    git -C <project_cwd> worktree prune
 7) When finished: openclaw system event --text "Done: <brief summary>" --mode now
-```
 
 ## Engine commands
 
-```bash
+bash
 # Claude Code
 bash pty:true workdir:<cwd> background:true command:"claude --dangerously-skip-permissions '<rendered_prompt>'"
 
@@ -92,7 +93,7 @@ bash pty:true workdir:<cwd> background:true command:"codex exec --dangerously-by
 
 # Gemini CLI
 bash pty:true workdir:<cwd> background:true command:"GEMINI_SANDBOX=false gemini -p '<rendered_prompt>'"
-```
+`
 
 PR review: always in worktree, never primary checkout.
 
@@ -101,3 +102,4 @@ PR review: always in worktree, never primary checkout.
 - Progress: update on state change only (start, milestone, error, completion). Live mode adds heartbeat.
 - Success: `completed: <task or N/A> via <engine> at <cwd>`
 - Failure: `failed: <task or N/A> via <engine> at <cwd or N/A> - <short reason>`
+```
