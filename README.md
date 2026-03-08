@@ -14,6 +14,11 @@ OpenClaw should use this skill when your request is about PREQSTATION task execu
 
 If your message includes `preq` or `preqstation`, this skill should be prioritized.
 
+Explicit command form:
+
+- `/skill preqstation-dispatch ...`
+- `!/skill preqstation-dispatch ...` for Telegram relays
+
 ## Execution mode
 
 Worktree-first execution is the default.
@@ -23,6 +28,7 @@ Worktree-first execution is the default.
 - launch engine commands with `pty:true` and explicit `workdir:<cwd>`
 - launch with `background:true` by default (foreground only when user explicitly asks for blocking/synchronous run)
 - monitor background sessions with `process action:poll` and `process action:log`
+- follow exactly one PREQ lifecycle branch per run; `todo` and `in_progress` runs must stop after `preq_complete_task` moves the task to review
 
 ## Progress mode
 
@@ -53,7 +59,7 @@ OpenClaw conversation context can accumulate tokens over long runs.
 5. `Implement API pagination and add tests in the example project.`
 6. `What is currently running in OpenClaw sessions?`
 7. `Show progress for session openclaw-claude-20260221-131240.`
-8. `/skills preqstation sync`
+8. `/skills preqstation-dispatch sync`
 9. `project-sync all`
 10. `project-sync proj`
 
@@ -95,8 +101,8 @@ Project sync trigger (supported aliases):
 
 - `project-sync all` (sync all mapped projects)
 - `project-sync <PROJECT_KEY>` (sync one mapped project by exact key)
-- `/skills preqstation sync` (backward-compatible; same as all)
-- `/skills preqstation sync <PROJECT_KEY>` (single project)
+- `/skills preqstation-dispatch sync` (same as all)
+- `/skills preqstation-dispatch sync <PROJECT_KEY>` (single project)
 - do not launch coding agents
 - read `MEMORY.md` mappings and choose target scope (all or single key)
 - call PREQSTATION MCP tool `preq_sync_projects` once with the selected list (single key means one-item list)

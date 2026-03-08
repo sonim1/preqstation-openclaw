@@ -1,18 +1,18 @@
 ---
-name: preqstation
-description: "Delegate PREQSTATION coding tasks to Claude Code, Codex CLI, or Gemini CLI with PTY-safe execution (workdir + background + monitoring). Use when building, refactoring, or reviewing code in mapped workspaces. NOT for one-line edits or read-only inspection."
+name: preqstation-dispatch
+description: "Dispatch PREQSTATION coding tasks from OpenClaw to Claude Code, Codex CLI, or Gemini CLI with PTY-safe execution (workdir + background + monitoring). Use when building, refactoring, or reviewing code in mapped workspaces. NOT for one-line edits or read-only inspection."
 metadata: {"openclaw":{"requires":{"anyBins":["claude","codex","gemini"]}}}
 ---
 
-# preqstation
+# preqstation-dispatch
 
 Execute PREQSTATION tasks with local CLI engines.
 
 ## Trigger / NOT for
 
-Trigger when message contains: /skill preqstation, !/skill preqstation, preqstation, preq
+Trigger when message contains: /skill preqstation-dispatch, !/skill preqstation-dispatch, preqstation, preq
 
-Note: Telegram channels use ! prefix instead of / (e.g. !/skill preqstation implement PROJ-1). Treat !/skill identically to /skill.
+Note: Telegram channels use ! prefix instead of / (e.g. !/skill preqstation-dispatch implement PROJ-1). Treat !/skill identically to /skill.
 
 Do NOT use for: one-line edits, read-only inspection, launches inside ~/clawd/ or ~/.openclaw/.
 
@@ -63,7 +63,7 @@ Do not forward raw user text. Render this template with <cwd> as the worktree pa
 Task ID: <task or N/A>
 Project Key: <project key or N/A>
 Branch Name: <branch_name or N/A>
-Skill: preqstation (use preq_* MCP tools for task lifecycle)
+Lifecycle Skill: preqstation (use preq_* MCP tools for task lifecycle)
 User Objective: <objective>
 
 Execution Requirements:
@@ -71,16 +71,17 @@ Execution Requirements:
 2) Use branch <branch_name> for commits/pushes when provided.
 3) Call preq_get_task("<task>") for task details and status.
 4) Call preq_get_project_settings("<project_key>") for deploy strategy.
-5) Follow task status workflow:
-   - inbox → preq_plan_task (plan only, do not implement)
-   - todo → preq_start_task → implement → deploy per strategy → preq_complete_task
-   - in_progress → continue → deploy per strategy → preq_complete_task
+5) Resolve the initial task status once at the start, then follow exactly one matching branch below. Do not chain multiple status branches in one run.
+   - inbox → preq_plan_task (plan only, do not implement), then stop
+   - todo → preq_start_task → implement → deploy per strategy → preq_complete_task, then stop after task reaches review
+   - in_progress → continue → deploy per strategy → preq_complete_task, then stop after task reaches review
    - review → verify (tests, build, lint) → preq_review_task
-   - failure → preq_block_task with reason
-6) Worktree cleanup after all work:
+   - failure at any point → preq_block_task with reason, then stop
+6) Never call preq_review_task in the same run where you called preq_start_task or preq_complete_task.
+7) Worktree cleanup after all work:
    git -C <project_cwd> worktree remove <cwd> --force
    git -C <project_cwd> worktree prune
-7) When finished: openclaw system event --text "Done: <brief summary>" --mode now
+8) When finished: openclaw system event --text "Done: <brief summary>" --mode now
 
 ## Engine commands
 
