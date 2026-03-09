@@ -69,19 +69,11 @@ User Objective: <objective>
 Execution Requirements:
 1) Work only inside <cwd>.
 2) Use branch <branch_name> for commits/pushes when provided.
-3) Call preq_get_task("<task>") for task details and status.
-4) Call preq_get_project_settings("<project_key>") for deploy strategy.
-5) Resolve the initial task status once at the start, then follow exactly one matching branch below. Do not chain multiple status branches in one run.
-   - inbox → preq_plan_task (plan only, do not implement), then stop
-   - todo → preq_start_task → implement → deploy per strategy → preq_complete_task, then stop after task reaches review
-   - in_progress → continue → deploy per strategy → preq_complete_task, then stop after task reaches review
-   - review → verify (tests, build, lint) → preq_review_task
-   - failure at any point → preq_block_task with reason, then stop
-6) Never call preq_review_task in the same run where you called preq_start_task or preq_complete_task.
-7) Worktree cleanup after all work:
+3) Use the preqstation lifecycle skill as the single source of truth for PREQ task rules, status transitions, deploy handling, and preq_* tool usage. Do not restate or override that workflow here.
+4) Worktree cleanup after all work:
    git -C <project_cwd> worktree remove <cwd> --force
    git -C <project_cwd> worktree prune
-8) When finished: openclaw system event --text "Done: <brief summary>" --mode now
+5) When finished: openclaw system event --text "Done: <brief summary>" --mode now
 
 ## Engine commands
 

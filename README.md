@@ -28,7 +28,7 @@ Worktree-first execution is the default.
 - launch engine commands with `pty:true` and explicit `workdir:<cwd>`
 - launch with `background:true` by default (foreground only when user explicitly asks for blocking/synchronous run)
 - monitor background sessions with `process action:poll` and `process action:log`
-- follow exactly one PREQ lifecycle branch per run; `todo` and `in_progress` runs must stop after `preq_complete_task` moves the task to review
+- delegate PREQ lifecycle branching, status transitions, and `preq_*` tool usage to the core `preqstation` skill
 
 ## Progress mode
 
