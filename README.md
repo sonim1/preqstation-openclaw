@@ -82,10 +82,12 @@ Execution needs two paths:
 Resolve in this order:
 
 1. absolute path directly mentioned in message
-2. project key from `MEMORY.md` (for example `example`)
-3. task prefix key match in `MEMORY.md` (when available)
+2. project key from OpenClaw agent memory
+3. task prefix key match in OpenClaw agent memory (when available)
 
-If path cannot be resolved, ask user for project key or absolute path.
+Use [`MEMORY.md`](/Users/kendrick/projects/preqstation-openclaw/MEMORY.md) in this repo only as a sample format reference.
+
+If path cannot be resolved, ask the user for the absolute path, then save the confirmed mapping to OpenClaw agent memory.
 
 After `project_cwd` is resolved, create task worktree `cwd`:
 
@@ -104,17 +106,17 @@ Project sync trigger (supported aliases):
 - `/skills preqstation-dispatch sync` (same as all)
 - `/skills preqstation-dispatch sync <PROJECT_KEY>` (single project)
 - do not launch coding agents
-- read `MEMORY.md` mappings and choose target scope (all or single key)
+- read OpenClaw agent memory mappings and choose target scope (all or single key)
 - call PREQSTATION MCP tool `preq_sync_projects` once with the selected list (single key means one-item list)
 - backend records synced/not-synced per project, and Projects view shows status
 
 ## MEMORY.md usage
 
-`MEMORY.md` stores reusable project path mappings.
+[`MEMORY.md`](/Users/kendrick/projects/preqstation-openclaw/MEMORY.md) shows the sample schema for project path mappings. The user's real mappings should live in OpenClaw agent memory.
 
 - keep keys short and stable
 - use absolute paths only
-- update this file through normal OpenClaw conversation when paths change
+- save confirmed mappings to agent memory when paths change
 
 ## Expected output
 

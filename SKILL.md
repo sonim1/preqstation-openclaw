@@ -34,18 +34,19 @@ Parse from user message:
 1. engine — claude | codex | gemini (default: claude)
 2. task — first token matching <KEY>-<number> (e.g. PRJ-284)
 3. branch_name — parse from branch_name=<value> or branch=<value>; normalize lowercase, replace whitespace with -; if missing project_key prefix with preqstation/<project_key>/
-4. project_cwd — absolute path from message, or resolve from MEMORY.md by project key; if unresolved, ask user
+4. project_cwd — absolute path from message, or resolve from OpenClaw agent memory by project key. Use `MEMORY.md` in this repo only as a sample format reference. If unresolved, ask the user for the absolute path and save the confirmed mapping to agent memory.
 5. objective — user request as execution objective
 6. cwd — worktree path: <worktree_root>/<project_key>/<branch_slug>
 7. progress_mode — sparse (default) or live (if user says live/realtime/detailed)
 
 ## MEMORY.md
 
-- Read MEMORY.md Projects table (key | cwd | note) from repo root.
+- Treat `MEMORY.md` in this repo as an example schema, not the user's live registry.
+- Use OpenClaw agent memory for actual project key -> cwd mappings.
 - Match project keys by exact match only (case-insensitive).
 - Task prefix = candidate key (e.g. PROS-102 → pros).
-- If cwd is TBD or missing: try to locate the git repository locally (e.g. find ~/projects -maxdepth 2 -name .git -type d), or ask the user for the absolute path. Once confirmed, update MEMORY.md immediately, then continue.
-- Format: | <key> | <absolute-path> | <note> |, one row per key, lowercase kebab-case.
+- If a mapping is missing or unresolved: ask the user for the absolute path. Once confirmed, save it to agent memory, then continue.
+- Sample format: | <key> | <absolute-path-or-TBD> | <note> |, one row per key, lowercase kebab-case.
 
 ## Worktree-first execution
 
