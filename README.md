@@ -1,6 +1,6 @@
 # preqstation-openclaw
 
-OpenClaw skill package for running `claude`, `codex`, or `gemini` CLI with a fixed execution template.
+OpenClaw skill package for running `claude`, `codex`, or `gemini` CLI with a fixed execution template while using PREQ engine keys like `claude-code`, `codex`, and `gemini-cli`.
 
 This repository is skill-only. It does not ship HTTP servers, webhook handlers, or messenger integration code.
 
@@ -23,8 +23,10 @@ Explicit command form:
 
 Worktree-first execution is the default.
 
-- resolve `project_cwd` from user input or `MEMORY.md`
+- resolve `project_cwd` from user input or OpenClaw agent memory
 - create a per-task git worktree and use it as execution `<cwd>`
+- write the full PREQ prompt to `<cwd>/.preqstation-prompt.txt`
+- launch the engine with a short bootstrap prompt that tells it to read `./.preqstation-prompt.txt`
 - launch engine commands with `pty:true` and explicit `workdir:<cwd>`
 - launch with `background:true` by default (foreground only when user explicitly asks for blocking/synchronous run)
 - monitor background sessions with `process action:poll` and `process action:log`
@@ -35,7 +37,7 @@ Worktree-first execution is the default.
 Status updates support two modes:
 
 - `sparse` (default): start + state-change updates only. Primary goal is token/cost reduction.
-- `live`: state-change updates + periodic running updates for close monitoring.
+- `live`: state-change updates + periodic working updates for close monitoring.
 
 How users can mention this in a message:
 
@@ -52,9 +54,9 @@ OpenClaw conversation context can accumulate tokens over long runs.
 
 ## Natural language examples
 
-1. `Start PRJ-284 in the example project using Claude.`
+1. `Start PRJ-284 in the example project using Claude Code.`
 2. `Use Codex to fix README command examples in the example project.`
-3. `Use Gemini to draft notes for DOC-12 in the example project.`
+3. `Use Gemini CLI to draft notes for DOC-12 in the example project.`
 4. `Update the example project path to /<absolute-path>/projects/example-project.`
 5. `Implement API pagination and add tests in the example project.`
 6. `What is currently running in OpenClaw sessions?`
@@ -69,8 +71,14 @@ Optional structured fields in the same message:
 
 ## Engine selection rules
 
-- explicit engine in message: use it (`claude`, `codex`, `gemini`)
-- if omitted: default to `claude`
+- explicit engine in message: use it (`claude-code`, `codex`, `gemini-cli`)
+- if omitted: default to `claude-code`
+
+Execution uses separate concepts:
+
+- workflow status: `inbox`, `todo`, `hold`, `ready`, `done`, `archived`
+- execution state: `queued`, `working`, or `null`
+- local CLI binary map: `claude-code -> claude`, `codex -> codex`, `gemini-cli -> gemini`
 
 ## Workspace path resolution
 
