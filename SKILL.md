@@ -15,46 +15,44 @@ Trigger when message contains: /skill preqstation-dispatch, !/skill preqstation-
 
 Note: Telegram channels use ! prefix instead of / (e.g. !/skill preqstation-dispatch implement PROJ-1). Treat !/skill identically to /skill.
 
-Do NOT use for: one-line edits, generic read-only inspection, launches inside ~/clawd/ or ~/.openclaw/.
+## Hard rules (ordered by priority)
 
-## Hard rules
-
-1. Always pty:true + background:true (foreground only if user explicitly asks).
-2. Respect requested engine key; default `claude-code`.
-3. Never launch in ~/clawd/, ~/.openclaw/, or primary checkout paths.
-4. Always create a git worktree before launching; scope execution to worktree only.
-5. Worktree branch names must include the resolved project key.
-6. Run preflight checks (command -v git, command -v <engine>) before launch.
-7. Use dangerously-\* / sandbox-disable flags only in resolved task worktrees.
-8. Planning requests still launch the requested engine in the resolved worktree. Only generic read-only inspection requests should skip engine launch.
+1. **Dispatcher only** — resolve paths, prepare worktree, render prompt, launch engine. Never plan, implement, or review code yourself.
+2. **Worktree isolation** — all engine execution must happen in a resolved worktree. Never launch in `~/clawd/`, `~/.openclaw/`, or primary checkout paths.
+3. **Verify before launch** — confirm `<cwd>` exists on disk and preflight checks pass (`command -v git`, `command -v <engine>`) before launching. If either fails, stop and report.
+4. **No fallback dirs** — if worktree creation fails or launcher reports a fallback workdir, stop and report failure. Do not silently continue elsewhere.
+5. **Prompt via file** — write full PREQ prompt to `<cwd>/.preqstation-prompt.txt`, launch engine with a short bootstrap that reads it. Never pass full prompt via argv/stdin.
+6. **PTY + background by default** — always `pty:true background:true` unless user explicitly requests foreground.
+7. **Sandbox-disable flags in worktrees only** — `dangerously-*` / `sandbox-disable` flags are permitted only inside resolved task worktrees.
 
 ## Input interpretation
 
 Parse from user message:
 
-1. engine — `claude-code` | `codex` | `gemini-cli` (default: `claude-code`)
+1. engine — `claude-code` | `codex` | `gemini-cli`
 2. task — first token matching <KEY>-<number> (e.g. PRJ-284)
 3. branch_name — parse from branch_name=<value> or branch=<value>; normalize lowercase, replace whitespace with -; if missing project_key prefix with preqstation/<project_key>/
-4. project_cwd — absolute path from message, or resolve from OpenClaw agent memory by project key. Use `MEMORY.md` in this repo only as a sample format reference. If unresolved, ask the user for the absolute path and save the confirmed mapping to agent memory.
+4. project_cwd — Read Project Path Resolution section
 5. objective — user request as execution objective
 6. cwd — worktree path: <worktree_root>/<project_key>/<branch_slug>
 7. progress_mode — sparse (default) or live (if user says live/realtime/detailed)
 
-## MEMORY.md
+## Project Path Resolution
 
-- Treat `MEMORY.md` in this repo as an example schema, not the user's live registry.
-- Use OpenClaw agent memory for actual project key -> cwd mappings.
-- Match project keys by exact match only (case-insensitive).
-- Task prefix = candidate key (e.g. PROS-102 → pros).
-- If a mapping is missing or unresolved: ask the user for the absolute path. Once confirmed, save it to agent memory, then continue.
-- Sample format: | <key> | <absolute-path-or-TBD> | <note> |, one row per key, lowercase kebab-case.
+- `MEMORY.md` is an example schema only — actual mappings live in agent memory.
+- Infer project key from task prefix (e.g. `PROS-102` → `pros`, case-insensitive exact match)
+- If mapping is missing, ask the user for the absolute path, then save to agent memory
+- Format: `| <key> | <absolute-path-or-TBD> | <note> |` (lowercase kebab-case, one row per key)
 
 ## Worktree-first execution
 
 1. Branch name: parsed branch_name → fallback preqstation/<project_key>. Reject unsafe names (.., leading /).
-2. Worktree path: <worktree_root>/<project_key>/<branch_slug> (slug = branch with / → -).
-3. Create: git -C <project_cwd> worktree add -b <branch_name> <cwd> HEAD (or without -b for existing branch).
-4. Render the full PREQ prompt into `<cwd>/.preqstation-prompt.txt` before launching the engine.
+2. Candidate worktree path: <worktree_root>/<project_key>/<branch_slug> (slug = branch with / → -).
+3. Inspect `git -C <project_cwd> worktree list --porcelain`. If `<branch_name>` is already checked out anywhere, reuse that existing worktree path as `<cwd>`.
+4. If no existing worktree matches, create `<cwd>` from an existing directory: `git -C <project_cwd> worktree add -b <branch_name> <cwd> HEAD` (or without `-b` for an existing branch).
+5. Verify `<cwd>` exists on disk before writing files or launching the engine. If it does not exist, stop instead of launching.
+6. Render the full PREQ prompt into `<cwd>/.preqstation-prompt.txt`.
+7. Launch the engine with `workdir:<cwd>` only after step 5 succeeds.
 
 ## Prompt template
 
@@ -62,46 +60,43 @@ Do not forward raw user text. Render this template into `<cwd>/.preqstation-prom
 
 **Hard rule (prompt transport):** Always write the full PREQ prompt to `<cwd>/.preqstation-prompt.txt`, then launch the CLI with a short bootstrap prompt that tells it to read `./.preqstation-prompt.txt` inside the current workspace. Do NOT pass the full PREQ prompt via argv or stdin.
 
-`text
+```text
 Task ID: <task or N/A>
 Project Key: <project key or N/A>
-Branch Name: <branch*name or N/A>
-Lifecycle Skill: preqstation (use preq*\* MCP tools for task lifecycle)
+Branch Name: <branch_name or N/A>
+Lifecycle Skill: preqstation (use preq_* MCP tools for task lifecycle)
 User Objective: <objective>
 
 Execution Requirements:
-
-1. Work only inside <cwd>.
-2. Use branch <branch_name> for commits/pushes when provided.
-3. If Task ID is present, your first lifecycle action must be `preq_get_task("<task_id>")` before asking the user for task text, before planning, and before implementation. Use the fetched task as the source of truth for title, description, acceptance criteria, and status.
-4. Must follow the Execution Flow in the PREQSTATION MCP skill.
-5. Do not ask the user to paste the task card text or `preq_get_task` output when `preq_get_task("<task_id>")` is available. Ask only if the tool call itself fails or PREQ tools are unavailable.
-6. Use the preqstation lifecycle skill as the single source of truth for PREQ task rules, status transitions, deploy handling, and preq\_\* tool usage. Do not restate or override that workflow here.
-7. Worktree cleanup after all work:
+1) Work only inside <cwd>.
+2) Use branch <branch_name> for commits/pushes when provided.
+3) If Task ID is present, your first lifecycle action must be `preq_get_task("<task_id>")` before asking the user for task text, before planning, and before implementation. Use the fetched task as the source of truth for title, description, acceptance criteria, and status.
+4) If the fetched task is active (`inbox`, `todo`, `hold`, or `ready`), call `preq_start_task("<task_id>", "<engine>")` immediately after `preq_get_task` and before any planning, implementation, or verification so PREQSTATION records `run_state=working`. Telegram/OpenClaw dispatch may already have set `run_state=queued`.
+5) Treat workflow status and execution state separately. Valid workflow statuses are `inbox`, `todo`, `hold`, `ready`, `done`, and `archived`. Valid `run_state` values are `queued`, `working`, and `null`. Do not emit legacy workflow statuses like `in_progress` or `review`.
+6) Must follow the Execution Flow in the PREQSTATION MCP skill.
+7) Do not ask the user to paste the task card text or `preq_get_task` output when `preq_get_task("<task_id>")` is available. Ask only if the tool call itself fails or PREQ tools are unavailable.
+8) Use the preqstation lifecycle skill as the single source of truth for PREQ task rules, status transitions, deploy handling, and preq_* tool usage. Do not restate or override that workflow here.
+9) If `./.preqstation-prompt.txt` is missing in the current workspace, stop and report a dispatch failure instead of improvising from another directory.
+10) Worktree cleanup after all work:
    git -C <project_cwd> worktree remove <cwd> --force
    git -C <project_cwd> worktree prune
-8. When finished: openclaw system event --text "Done: <brief summary>" --mode now
+11) When finished: openclaw system event --text "Done: <brief summary>" --mode now
 
 ## Engine commands
 
 bash
-
 # Bootstrap prompt (same idea for all engines):
-
-# "Read and execute instructions from ./.preqstation-prompt.txt in the current workspace. Treat that file as the source of truth. If a Task ID is present there, call preq_get_task first, then preq_start_task before substantive work."
+# "Read and execute instructions from ./.preqstation-prompt.txt in the current workspace. Treat that file as the source of truth. If that file is missing, stop. If a Task ID is present there, call preq_get_task first, then preq_start_task before substantive work."
 
 # Claude Code
-
-bash pty:true workdir:<cwd> background:true command:"claude --dangerously-skip-permissions \"Read and execute instructions from ./.preqstation-prompt.txt in the current workspace. Treat that file as the source of truth. If a Task ID is present there, call preq_get_task first, then preq_start_task before substantive work.\""
+bash pty:true workdir:<cwd> background:true command:"claude --dangerously-skip-permissions \"Read and execute instructions from ./.preqstation-prompt.txt in the current workspace. Treat that file as the source of truth. If that file is missing, stop. If a Task ID is present there, call preq_get_task first, then preq_start_task before substantive work.\""
 
 # Codex CLI
-
-bash pty:true workdir:<cwd> background:true command:"codex exec --dangerously-bypass-approvals-and-sandbox \"Read and execute instructions from ./.preqstation-prompt.txt in the current workspace. Treat that file as the source of truth. If a Task ID is present there, call preq_get_task first, then preq_start_task before substantive work.\""
+bash pty:true workdir:<cwd> background:true command:"codex exec --dangerously-bypass-approvals-and-sandbox \"Read and execute instructions from ./.preqstation-prompt.txt in the current workspace. Treat that file as the source of truth. If that file is missing, stop. If a Task ID is present there, call preq_get_task first, then preq_start_task before substantive work.\""
 
 # Gemini CLI
-
-bash pty:true workdir:<cwd> background:true command:"GEMINI_SANDBOX=false gemini -p \"Read and execute instructions from ./.preqstation-prompt.txt in the current workspace. Treat that file as the source of truth. If a Task ID is present there, call preq_get_task first, then preq_start_task before substantive work.\""
-`
+bash pty:true workdir:<cwd> background:true command:"GEMINI_SANDBOX=false gemini -p \"Read and execute instructions from ./.preqstation-prompt.txt in the current workspace. Treat that file as the source of truth. If that file is missing, stop. If a Task ID is present there, call preq_get_task first, then preq_start_task before substantive work.\""
+```
 
 PR review: always in worktree, never primary checkout.
 
@@ -110,7 +105,3 @@ PR review: always in worktree, never primary checkout.
 - Progress: update on state change only (start, milestone, error, completion). Live mode adds heartbeat.
 - Success: `completed: <task or N/A> via <engine> at <cwd>`
 - Failure: `failed: <task or N/A> via <engine> at <cwd or N/A> - <short reason>`
-
-```
-
-```
