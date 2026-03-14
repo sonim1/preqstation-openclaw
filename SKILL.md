@@ -51,7 +51,7 @@ Parse from user message:
 3. Inspect `git -C <project_cwd> worktree list --porcelain`. If `<branch_name>` is already checked out anywhere, reuse that existing worktree path as `<cwd>`.
 4. If no existing worktree matches, create `<cwd>` from an existing directory: `git -C <project_cwd> worktree add -b <branch_name> <cwd> HEAD` (or without `-b` for an existing branch).
 5. Verify `<cwd>` exists on disk before writing files or launching the engine. If it does not exist, stop instead of launching.
-6. Render the full PREQ prompt into `<cwd>/.preqstation-prompt.txt`.
+6. Always overwrite `<cwd>/.preqstation-prompt.txt` with a freshly rendered PREQ prompt for the current dispatch, even when reusing an existing worktree.
 7. Launch the engine with `workdir:<cwd>` only after step 5 succeeds.
 
 ## Prompt template
@@ -60,7 +60,7 @@ Do not forward raw user text. Render this template into `<cwd>/.preqstation-prom
 
 **Hard rule (prompt transport):** Always write the full PREQ prompt to `<cwd>/.preqstation-prompt.txt`, then launch the CLI with a short bootstrap prompt that tells it to read `./.preqstation-prompt.txt` inside the current workspace. Do NOT pass the full PREQ prompt via argv or stdin.
 
-```text
+````text
 Task ID: <task or N/A>
 Project Key: <project key or N/A>
 Branch Name: <branch_name or N/A>
@@ -88,14 +88,78 @@ bash
 # Bootstrap prompt (same idea for all engines):
 # "Read and execute instructions from ./.preqstation-prompt.txt in the current workspace. Treat that file as the source of truth. If that file is missing, stop. If a Task ID is present there, call preq_get_task first, then preq_start_task before substantive work."
 
+---
+
+## The Pattern: workdir + background + pty
+
+For longer tasks, use background mode with PTY:
+
+```bash
+# Start agent in target directory (with PTY!)
+bash pty:true workdir:~/project background:true command:"codex exec --full-auto 'Build a snake game'"
+# Returns sessionId for tracking
+
+# Monitor progress
+process action:log sessionId:XXX
+
+# Check if done
+process action:poll sessionId:XXX
+
+# Send input (if agent asks a question)
+process action:write sessionId:XXX data:"y"
+
+# Submit with Enter (like typing "yes" and pressing Enter)
+process action:submit sessionId:XXX data:"yes"
+
+# Kill if needed
+process action:kill sessionId:XXX
+````
+
+**Why workdir matters:** Agent wakes up in a focused directory, doesn't wander off reading unrelated files (like your soul.md 😅).
+
+---
+
+## Progress Updates (Critical)
+
+When you spawn coding agents in the background, keep the user in the loop.
+
+- Send 1 short message when you start (what's running + where).
+- Then only update again when something changes:
+  - a milestone completes (build finished, tests passed)
+  - the agent asks a question / needs input
+  - you hit an error or need user action
+  - the agent finishes (include what changed + where)
+- If you kill a session, immediately say you killed it and why.
+
+This prevents the user from seeing only "Agent failed before reply" and having no idea what happened.
+
+---
+
+## Auto-Notify on Completion
+
+For long-running background tasks, append a wake trigger to your prompt so OpenClaw gets notified immediately when the agent finishes (instead of waiting for the next heartbeat):
+
+```
+... your task here.
+
+When completely finished, run this command to notify me:
+openclaw system event --text "Done: [brief summary of what was built]" --mode now
+```
+
+---
+
 # Claude Code
+
 bash pty:true workdir:<cwd> background:true command:"claude --dangerously-skip-permissions \"Read and execute instructions from ./.preqstation-prompt.txt in the current workspace. Treat that file as the source of truth. If that file is missing, stop. If a Task ID is present there, call preq_get_task first, then preq_start_task before substantive work.\""
 
 # Codex CLI
+
 bash pty:true workdir:<cwd> background:true command:"codex exec --dangerously-bypass-approvals-and-sandbox \"Read and execute instructions from ./.preqstation-prompt.txt in the current workspace. Treat that file as the source of truth. If that file is missing, stop. If a Task ID is present there, call preq_get_task first, then preq_start_task before substantive work.\""
 
 # Gemini CLI
+
 bash pty:true workdir:<cwd> background:true command:"GEMINI_SANDBOX=false gemini -p \"Read and execute instructions from ./.preqstation-prompt.txt in the current workspace. Treat that file as the source of truth. If that file is missing, stop. If a Task ID is present there, call preq_get_task first, then preq_start_task before substantive work.\""
+
 ```
 
 PR review: always in worktree, never primary checkout.
@@ -105,3 +169,4 @@ PR review: always in worktree, never primary checkout.
 - Progress: update on state change only (start, milestone, error, completion). Live mode adds heartbeat.
 - Success: `completed: <task or N/A> via <engine> at <cwd>`
 - Failure: `failed: <task or N/A> via <engine> at <cwd or N/A> - <short reason>`
+```
