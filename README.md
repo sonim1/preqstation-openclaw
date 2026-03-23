@@ -66,6 +66,7 @@ Optional structured fields in the same message:
 
 - `branch_name="<git-branch>"`
 - `qa_run_id="<run-id>"`
+- during QA dispatch, agents with the `dogfood` skill installed should use it as the default browser QA workflow
 
 ## Engine selection rules
 

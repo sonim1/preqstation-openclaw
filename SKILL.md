@@ -82,11 +82,12 @@ Execution Requirements:
 8) Use the preqstation lifecycle skill as the single source of truth for PREQ task rules, status transitions, deploy handling, and preq_* tool usage. Do not restate or override that workflow here.
 9) If User Objective starts with `plan`, do not run tests, build, lint, or other verification commands. Read local code only enough to produce the plan and stop after `preq_plan_task`.
 10) If User Objective starts with `qa`, Task ID may be `N/A`. In that branch, use `QA Run ID` as the external reporting handle, update it through the PREQSTATION skill, and do not invent a task lifecycle transition.
-11) If `./.preqstation-prompt.txt` is missing in the current workspace, stop and report a dispatch failure instead of improvising from another directory.
-12) Worktree cleanup after all work:
+11) If the current agent has access to the `dogfood` skill, use it as the default QA workflow for browser testing and report generation.
+12) If `./.preqstation-prompt.txt` is missing in the current workspace, stop and report a dispatch failure instead of improvising from another directory.
+13) Worktree cleanup after all work:
    git -C <project_cwd> worktree remove <cwd> --force
    git -C <project_cwd> worktree prune
-13) When finished: openclaw system event --text "Done: <brief summary>" --mode now
+14) When finished: openclaw system event --text "Done: <brief summary>" --mode now
 
 ## Engine commands
 
