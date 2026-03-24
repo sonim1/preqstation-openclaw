@@ -34,10 +34,11 @@ Parse from user message:
 3. project_key — from task prefix when task exists, otherwise first standalone token matching <KEY>
 4. branch_name — parse from branch_name=<value> or branch=<value>; normalize lowercase, replace whitespace with -; if missing project_key prefix with preqstation/<project_key>/
 5. qa_run_id — parse from qa_run_id=<value> when present
-6. project_cwd — Read Project Path Resolution section
-7. objective — user request as execution objective
-8. cwd — worktree path: <worktree_root>/<project_key>/<branch_slug>
-9. progress_mode — sparse (default) or live (if user says live/realtime/detailed)
+6. qa_task_keys — parse from qa_task_keys=<csv> when present; preserve listed order and keep raw task keys
+7. project_cwd — Read Project Path Resolution section
+8. objective — user request as execution objective
+9. cwd — worktree path: <worktree_root>/<project_key>/<branch_slug>
+10. progress_mode — sparse (default) or live (if user says live/realtime/detailed)
 
 ## Project Path Resolution
 
@@ -50,12 +51,13 @@ Parse from user message:
 
 1. Branch name: parsed branch_name → fallback preqstation/<project_key>. Reject unsafe names (.., leading /).
 2. Candidate worktree path: <worktree_root>/<project_key>/<branch_slug> (slug = branch with / → -).
-3. Inspect `git -C <project_cwd> worktree list --porcelain`. If `<branch_name>` is already checked out anywhere, reuse that existing worktree path as `<cwd>`.
-4. If no existing worktree matches, create `<cwd>` from an existing directory: `git -C <project_cwd> worktree add -b <branch_name> <cwd> HEAD` (or without `-b` for an existing branch).
-5. Verify `<cwd>` exists on disk before writing files or launching the engine. If it does not exist, stop instead of launching.
-6. For each local env file in `<project_cwd>` intended for runtime overrides (for example `.env`, `.env.local`, `.env.development.local`, `.env.test.local`), ensure `<cwd>/<name>` is a symlink to the primary checkout. Do not treat committed templates such as `.env.example`, `.env.sample`, or `.env.template` as symlink targets. If `<cwd>/<name>` already exists as a regular file for a required local env file, stop and report failure instead of overwriting it. If it is missing or already a symlink, refresh it with `ln -sfn`.
-7. Always overwrite `<cwd>/.preqstation-prompt.txt` with a freshly rendered PREQ prompt for the current dispatch, even when reusing an existing worktree.
-8. Launch the engine with `workdir:<cwd>` only after step 6 succeeds.
+3. Inspect `git -C <project_cwd> worktree list --porcelain`. Reuse an existing auxiliary worktree only when the matching path is not `<project_cwd>`. Never reuse the primary checkout as `<cwd>`.
+4. If `<branch_name>` is already checked out only in `<project_cwd>`, create a detached worktree instead: `git -C <project_cwd> worktree add --detach <cwd> <branch_name>`. This is the expected path for branch-level QA on `main` or other canonical branches.
+5. If no reusable auxiliary worktree matches and `<branch_name>` is not active in `<project_cwd>`, create `<cwd>` normally with `git -C <project_cwd> worktree add -b <branch_name> <cwd> HEAD` (or without `-b` for an existing branch that is not active elsewhere).
+6. Verify `<cwd>` exists on disk and is not equal to `<project_cwd>` before writing files or launching the engine. If either check fails, stop instead of launching.
+7. For each local env file in `<project_cwd>` intended for runtime overrides (for example `.env`, `.env.local`, `.env.development.local`, `.env.test.local`), ensure `<cwd>/<name>` is a symlink to the primary checkout. Do not treat committed templates such as `.env.example`, `.env.sample`, or `.env.template` as symlink targets. This rule applies only inside an auxiliary worktree, never against `<project_cwd>` itself. If `<cwd>/<name>` already exists as a regular file for a required local env file, stop and report failure instead of overwriting it. If it is missing or already a symlink, refresh it with `ln -sfn`.
+8. Always overwrite `<cwd>/.preqstation-prompt.txt` with a freshly rendered PREQ prompt for the current dispatch, even when reusing an existing worktree.
+9. Launch the engine with `workdir:<cwd>` only after step 7 succeeds.
 
 ## Prompt template
 
@@ -68,6 +70,7 @@ Task ID: <task or N/A>
 Project Key: <project key or N/A>
 Branch Name: <branch_name or N/A>
 QA Run ID: <qa_run_id or N/A>
+QA Task Keys: <comma-separated task keys or N/A>
 Lifecycle Skill: preqstation (use preq_* MCP tools for task lifecycle)
 User Objective: <objective>
 
@@ -82,18 +85,19 @@ Execution Requirements:
 8) Use the preqstation lifecycle skill as the single source of truth for PREQ task rules, status transitions, deploy handling, and preq_* tool usage. Do not restate or override that workflow here.
 9) If User Objective starts with `plan`, do not run tests, build, lint, or other verification commands. Read local code only enough to produce the plan and stop after `preq_plan_task`.
 10) If User Objective starts with `qa`, Task ID may be `N/A`. In that branch, use `QA Run ID` as the external reporting handle, update it through the PREQSTATION skill, and do not invent a task lifecycle transition.
-11) If the current agent has access to the `dogfood` skill, use it as the default QA workflow for browser testing and report generation.
-12) If `./.preqstation-prompt.txt` is missing in the current workspace, stop and report a dispatch failure instead of improvising from another directory.
-13) Worktree cleanup after all work:
+11) If User Objective starts with `qa` and `QA Task Keys` is present, call `preq_get_task` for each listed task key before browser testing. Treat those tasks' titles, descriptions, and acceptance criteria as the QA scope. Limit QA to those scoped Ready tasks plus the minimal navigation and sanity checks needed to reach and verify them. Report unrelated findings only when they block scoped verification or prevent the app from starting.
+12) If the current agent has access to the `dogfood` skill, use it as the default QA workflow for browser testing and report generation.
+13) If `./.preqstation-prompt.txt` is missing in the current workspace, stop and report a dispatch failure instead of improvising from another directory.
+14) Worktree cleanup after all work:
    git -C <project_cwd> worktree remove <cwd> --force
    git -C <project_cwd> worktree prune
-14) When finished: openclaw system event --text "Done: <brief summary>" --mode now
+15) When finished: openclaw system event --text "Done: <brief summary>" --mode now
 
 ## Engine commands
 
 bash
 # Bootstrap prompt (same idea for all engines):
-# "Read and execute instructions from ./.preqstation-prompt.txt in the current workspace. Treat that file as the source of truth. If that file is missing, stop. If a Task ID is present there, call preq_get_task first, then preq_start_task before substantive work. If User Objective is qa, use QA Run ID from that file and report through the PREQSTATION skill."
+# "Read and execute instructions from ./.preqstation-prompt.txt in the current workspace. Treat that file as the source of truth. If that file is missing, stop. If a Task ID is present there, call preq_get_task first, then preq_start_task before substantive work. If User Objective is qa, use QA Run ID and QA Task Keys from that file, scope QA to those Ready tasks, and report through the PREQSTATION skill."
 
 ---
 
@@ -157,15 +161,15 @@ openclaw system event --text "Done: [brief summary of what was built]" --mode no
 
 # Claude Code
 
-bash pty:true workdir:<cwd> background:true command:"claude --dangerously-skip-permissions \"Read and execute instructions from ./.preqstation-prompt.txt in the current workspace. Treat that file as the source of truth. If that file is missing, stop. If a Task ID is present there, call preq_get_task first, then preq_start_task before substantive work.\""
+bash pty:true workdir:<cwd> background:true command:"claude --dangerously-skip-permissions \"Read and execute instructions from ./.preqstation-prompt.txt in the current workspace. Treat that file as the source of truth. If that file is missing, stop. If a Task ID is present there, call preq_get_task first, then preq_start_task before substantive work. If User Objective is qa, use QA Run ID and QA Task Keys from that file, scope QA to those Ready tasks, and report through the PREQSTATION skill.\""
 
 # Codex CLI
 
-bash pty:true workdir:<cwd> background:true command:"codex exec --dangerously-bypass-approvals-and-sandbox \"Read and execute instructions from ./.preqstation-prompt.txt in the current workspace. Treat that file as the source of truth. If that file is missing, stop. If a Task ID is present there, call preq_get_task first, then preq_start_task before substantive work.\""
+bash pty:true workdir:<cwd> background:true command:"codex exec --dangerously-bypass-approvals-and-sandbox \"Read and execute instructions from ./.preqstation-prompt.txt in the current workspace. Treat that file as the source of truth. If that file is missing, stop. If a Task ID is present there, call preq_get_task first, then preq_start_task before substantive work. If User Objective is qa, use QA Run ID and QA Task Keys from that file, scope QA to those Ready tasks, and report through the PREQSTATION skill.\""
 
 # Gemini CLI
 
-bash pty:true workdir:<cwd> background:true command:"GEMINI_SANDBOX=false gemini -p \"Read and execute instructions from ./.preqstation-prompt.txt in the current workspace. Treat that file as the source of truth. If that file is missing, stop. If a Task ID is present there, call preq_get_task first, then preq_start_task before substantive work.\""
+bash pty:true workdir:<cwd> background:true command:"GEMINI_SANDBOX=false gemini -p \"Read and execute instructions from ./.preqstation-prompt.txt in the current workspace. Treat that file as the source of truth. If that file is missing, stop. If a Task ID is present there, call preq_get_task first, then preq_start_task before substantive work. If User Objective is qa, use QA Run ID and QA Task Keys from that file, scope QA to those Ready tasks, and report through the PREQSTATION skill.\""
 
 ```
 

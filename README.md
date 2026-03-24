@@ -66,6 +66,7 @@ Optional structured fields in the same message:
 
 - `branch_name="<git-branch>"`
 - `qa_run_id="<run-id>"`
+- `qa_task_keys="<task-1,task-2,...>"`
 - during QA dispatch, agents with the `dogfood` skill installed should use it as the default browser QA workflow
 
 ## Engine selection rules
@@ -104,8 +105,10 @@ After `project_cwd` is resolved, create task worktree `cwd`:
   2. fallback to `preqstation/<project_key>`
 - if provided `branch_name` does not include project key, normalize to `preqstation/<project_key>/<branch_name>`
 - QA dispatch may omit task id and use `project_key` + `qa_run_id` instead; keep both fields in `.preqstation-prompt.txt`
+- when provided, keep `qa_task_keys` in `.preqstation-prompt.txt` as the ordered Ready-task QA scope
 - worktree directory naming: `<worktree_root>/<project_key>/<branch_slug>` where `branch_slug` is `branch_name` with `/` replaced by `-`
-- after worktree creation, symlink runtime local env files from `project_cwd` into `cwd` when they exist in the primary checkout, such as `.env`, `.env.local`, and `.env.*.local`; do not treat committed templates like `.env.example`, `.env.sample`, or `.env.template` as symlink targets; if the target path in `cwd` already exists as a regular file for a required local env file, stop and report failure instead of overwriting it
+- if the requested branch is already active only in the primary checkout, never reuse `project_cwd` as `cwd`; create a detached worktree from that branch instead, which is the expected path for QA on `main` or other canonical branches
+- after worktree creation, symlink runtime local env files from `project_cwd` into `cwd` when they exist in the primary checkout, such as `.env`, `.env.local`, and `.env.*.local`; do not treat committed templates like `.env.example`, `.env.sample`, or `.env.template` as symlink targets; apply this only inside auxiliary worktrees, never against `project_cwd` itself; if the target path in `cwd` already exists as a regular file for a required local env file, stop and report failure instead of overwriting it
 - run all coding-agent commands inside this worktree `cwd` (never in primary checkout)
 
 ## MEMORY.md usage
